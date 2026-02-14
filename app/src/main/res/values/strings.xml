@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Restroom Finder</string>
+
+    <!-- Main Activity -->
+    <string name="find_restrooms">Find Restrooms</string>
+    <string name="refresh">Refresh</string>
+    <string name="searching">Searching for nearby restrooms…</string>
+    <string name="nearest_restroom_found">Nearest: %1$s (%2$dm away)</string>
+    <string name="no_restrooms_found">No restrooms found nearby</string>
+    <string name="location_unavailable">Unable to get your location</string>
+    <string name="location_permission_denied">Location permission is required to find nearby restrooms</string>
+    <string name="error_finding_restrooms">Error finding restrooms. Please try again.</string>
+
+    <!-- Android Auto -->
+    <string name="auto_app_name">Restroom Finder</string>
+    <string name="auto_app_description">Find the nearest public restroom while driving</string>
+</resources>
