@@ -2,6 +2,9 @@ package com.restroomfinder.auto.auto
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
+import android.os.Build
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.*
@@ -11,17 +14,20 @@ import com.restroomfinder.auto.RestroomFinderApplication
 import com.restroomfinder.auto.data.model.Restroom
 import com.restroomfinder.auto.location.LocationProvider
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
 
     companion object {
-        private const val ITEMS_PER_PAGE = 6 // Android Auto list limit
+        private const val ITEMS_PER_PAGE = 5 // Android Auto list limit is 6, minus 1 for location header
     }
 
     private var restrooms: List<Restroom> = emptyList()
     private var isLoading = true
     private var errorMessage: String? = null
     private var currentPage = 0
+    private var currentLocation: Location? = null
+    private var currentLocationName: String? = null
 
     private val locationProvider = LocationProvider(carContext)
     private val repository = RestroomFinderApplication.instance.restroomRepository
@@ -47,6 +53,8 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
             try {
                 val location = locationProvider.getCurrentLocation()
                 if (location != null) {
+                    currentLocation = location
+                    currentLocationName = getLocationName(location)
                     restrooms = repository.findNearbyRestrooms(
                         location.latitude,
                         location.longitude,
@@ -109,6 +117,16 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
         val currentPageItems = restrooms.subList(startIndex, endIndex)
         val hasMoreItems = endIndex < restrooms.size
         val hasPreviousItems = currentPage > 0
+
+        // Add location header row
+        val locationText = currentLocationName ?: currentLocation?.let {
+            "%.4f, %.4f".format(it.latitude, it.longitude)
+        } ?: "Unknown location"
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("📍 $locationText")
+                .build()
+        )
 
         currentPageItems.forEach { restroom ->
             listBuilder.addItem(
@@ -190,5 +208,34 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
         if (restroom.isUnisex) parts.add("⚧")
         if (restroom.hasChangingTable) parts.add("🚼")
         return parts.joinToString(" • ")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getLocationName(location: Location): String? {
+        return try {
+            val geocoder = Geocoder(carContext, Locale.getDefault())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                var result: String? = null
+                geocoder.getFromLocation(location.latitude, location.longitude, 1) { addresses ->
+                    result = addresses.firstOrNull()?.let { address ->
+                        listOfNotNull(
+                            address.thoroughfare,
+                            address.locality
+                        ).joinToString(", ").ifEmpty { address.getAddressLine(0) }
+                    }
+                }
+                result
+            } else {
+                val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+                addresses?.firstOrNull()?.let { address ->
+                    listOfNotNull(
+                        address.thoroughfare,
+                        address.locality
+                    ).joinToString(", ").ifEmpty { address.getAddressLine(0) }
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
