@@ -15,14 +15,16 @@ class RestroomRepository(private val context: Context) {
         latitude: Double,
         longitude: Double,
         accessibleOnly: Boolean = false,
-        unisexOnly: Boolean = false
+        unisexOnly: Boolean = false,
+        perPage: Int = 20
     ): List<Restroom> = withContext(Dispatchers.IO) {
         try {
             val response = api.searchByLocation(
                 lat = latitude,
                 lng = longitude,
                 accessible = accessibleOnly,
-                unisex = unisexOnly
+                unisex = unisexOnly,
+                perPage = perPage
             )
             if (response.isSuccessful) {
                 response.body() ?: emptyList()

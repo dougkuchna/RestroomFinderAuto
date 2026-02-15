@@ -14,12 +14,18 @@ import kotlinx.coroutines.launch
 
 class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
 
+    companion object {
+        private const val ITEMS_PER_PAGE = 6 // Android Auto list limit
+    }
+
     private var restrooms: List<Restroom> = emptyList()
     private var isLoading = true
     private var errorMessage: String? = null
+    private var currentPage = 0
 
     private val locationProvider = LocationProvider(carContext)
     private val repository = RestroomFinderApplication.instance.restroomRepository
+    private val preferencesManager = RestroomFinderApplication.instance.preferencesManager
 
     init {
         loadRestrooms()
@@ -43,8 +49,10 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
                 if (location != null) {
                     restrooms = repository.findNearbyRestrooms(
                         location.latitude,
-                        location.longitude
+                        location.longitude,
+                        perPage = preferencesManager.maxResults
                     )
+                    currentPage = 0
                     isLoading = false
                     errorMessage = if (restrooms.isEmpty()) "No restrooms found nearby" else null
                 } else {
@@ -96,8 +104,13 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun buildListTemplate(): Template {
         val listBuilder = ItemList.Builder()
+        val startIndex = currentPage * ITEMS_PER_PAGE
+        val endIndex = minOf(startIndex + ITEMS_PER_PAGE, restrooms.size)
+        val currentPageItems = restrooms.subList(startIndex, endIndex)
+        val hasMoreItems = endIndex < restrooms.size
+        val hasPreviousItems = currentPage > 0
 
-        restrooms.take(6).forEach { restroom ->
+        currentPageItems.forEach { restroom ->
             listBuilder.addItem(
                 Row.Builder()
                     .setTitle(restroom.name)
@@ -110,24 +123,63 @@ class RestroomListScreen(carContext: CarContext) : Screen(carContext) {
             )
         }
 
-        return ListTemplate.Builder()
-            .setTitle("Nearby Restrooms")
-            .setHeaderAction(Action.APP_ICON)
-            .setSingleList(listBuilder.build())
-            .setActionStrip(
-                ActionStrip.Builder()
-                    .addAction(
-                        Action.Builder()
-                            .setTitle("Refresh")
-                            .setOnClickListener {
-                                isLoading = true
-                                invalidate()
-                                loadRestrooms()
-                            }
-                            .build()
-                    )
+        val actionStripBuilder = ActionStrip.Builder()
+            .addAction(
+                Action.Builder()
+                    .setTitle("Refresh")
+                    .setOnClickListener {
+                        isLoading = true
+                        currentPage = 0
+                        invalidate()
+                        loadRestrooms()
+                    }
                     .build()
             )
+            .addAction(
+                Action.Builder()
+                    .setTitle("Settings")
+                    .setOnClickListener {
+                        screenManager.push(SettingsScreen(carContext))
+                    }
+                    .build()
+            )
+
+        if (hasPreviousItems) {
+            actionStripBuilder.addAction(
+                Action.Builder()
+                    .setTitle("Previous")
+                    .setOnClickListener {
+                        currentPage--
+                        invalidate()
+                    }
+                    .build()
+            )
+        }
+
+        if (hasMoreItems) {
+            actionStripBuilder.addAction(
+                Action.Builder()
+                    .setTitle("Show More")
+                    .setOnClickListener {
+                        currentPage++
+                        invalidate()
+                    }
+                    .build()
+            )
+        }
+
+        val totalPages = (restrooms.size + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE
+        val title = if (totalPages > 1) {
+            "Nearby Restrooms (${currentPage + 1}/$totalPages)"
+        } else {
+            "Nearby Restrooms"
+        }
+
+        return ListTemplate.Builder()
+            .setTitle(title)
+            .setHeaderAction(Action.APP_ICON)
+            .setSingleList(listBuilder.build())
+            .setActionStrip(actionStripBuilder.build())
             .build()
     }
 
